@@ -398,13 +398,18 @@ open class MainActivity : ComponentActivity() {
         val launchEpisodeTitle = intent?.getStringExtra("episodeTitle")
         captureDeepLinkIntent(intent)
 
-        // WATCHFIRST: same rhythm as the PC and phone apps. While the app is on screen, re-read the plan and
-        // addons every minute (and right away when it comes back), so admin changes reach the TV quickly.
+        // WATCHFIRST: re-read the plan and addons when the app opens, then every 3 hours while it is on screen.
+        // Leaving and coming back within those 3 hours does not add a check.
         lifecycleScope.launch {
+            val planCheckIntervalMs = 3 * 60 * 60 * 1000L
+            var lastPlanCheck: Long? = null
             repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
                 while (true) {
+                    val last = lastPlanCheck
+                    val wait = if (last == null) 0L else last + planCheckIntervalMs - android.os.SystemClock.elapsedRealtime()
+                    if (wait > 0) delay(wait)
                     watchfirstAccess.refreshNow()
-                    delay(60_000)
+                    lastPlanCheck = android.os.SystemClock.elapsedRealtime()
                 }
             }
         }
