@@ -21,14 +21,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 75
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
 
       - name: Write local configuration
         env:
@@ -77,8 +77,12 @@ jobs:
           else
             TASKS=(:app:assembleFullDebug -Pdebuggable=true)
           fi
-          # Same memory settings as the phone build: Kotlin compiles inside one 10 GB Gradle JVM on the 16 GB runner.
-          MEMORY_FLAGS=(-Dorg.gradle.jvmargs="-Xmx10g -Dfile.encoding=UTF-8 -XX:MaxMetaspaceSize=1536m" -Pkotlin.compiler.execution.strategy=in-process)
+          # Kotlin compiles inside the one Gradle JVM. Its heap follows the runner: public repos get 16 GB of RAM,
+          # private ones about 7 GB, where a 10 GB heap gets the build killed (exit 143).
+          MEM_GB=$(free -g | awk '/^Mem:/{print $2}')
+          if [ "$MEM_GB" -ge 14 ]; then HEAP=10g; WORKERS=4; else HEAP=4608m; WORKERS=2; fi
+          echo "Runner RAM: ${MEM_GB} GB -> Gradle heap ${HEAP}, ${WORKERS} workers"
+          MEMORY_FLAGS=(-Dorg.gradle.jvmargs="-Xmx${HEAP} -Dfile.encoding=UTF-8 -XX:MaxMetaspaceSize=1g" -Pkotlin.compiler.execution.strategy=in-process --max-workers="$WORKERS")
           # Downloads from Maven/Gradle occasionally time out on hosted runners; retry the build, not the code.
           set +e
           for attempt in 1 2 3; do
