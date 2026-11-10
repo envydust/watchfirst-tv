@@ -234,7 +234,11 @@ class WatchfirstAccess @Inject constructor(
      * are no longer granted. Addons and plugins that are not WATCHFIRST gateway URLs are never touched.
      */
     suspend fun syncContent() = syncLock.withLock {
-        val desired = _state.value.let { if (it.granted) it.addons else emptyList() }
+        val current = _state.value
+        // Until the service answers in this session the plan's addons are unknown (offline start, or the
+        // first check still running): keep what is installed instead of removing it.
+        if (current.granted && current.member == null) return@withLock
+        val desired = if (current.granted) current.addons else emptyList()
         runCatching {
             val wanted = desired.filter { it.kind == "stremio" }.map { it.url }
             val wantedKeys = wanted.mapTo(HashSet(), ::watchfirstAddonUrlKey)
