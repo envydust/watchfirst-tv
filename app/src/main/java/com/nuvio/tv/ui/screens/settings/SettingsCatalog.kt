@@ -31,9 +31,14 @@ internal fun visibleSettingsCategories(
     isWatchPartyAvailable: Boolean = false
 ): List<SettingsCategory> = SettingsCategory.entries.filter { category ->
     when (category) {
+        // WATCHFIRST: the member's access replaces the Nuvio account, addons come from the plan, and
+        // integrations, tracking and Watch Party are hidden, as on the PC and phone apps.
         SettingsCategory.ACCOUNT,
+        SettingsCategory.WATCH_PARTY,
+        SettingsCategory.CONTENT_DISCOVERY,
+        SettingsCategory.INTEGRATION,
+        SettingsCategory.TRACKING -> false
         SettingsCategory.PROFILES -> isPrimaryProfile
-        SettingsCategory.WATCH_PARTY -> isWatchPartyAvailable
         SettingsCategory.DEBUG -> isDebugBuild && !isEssentialMode
         SettingsCategory.EXPERIENCE -> false
         else -> true

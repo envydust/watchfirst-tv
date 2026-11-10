@@ -17,14 +17,10 @@ class SettingsCatalogTest {
 
         assertEquals(
             listOf(
-                SettingsCategory.ACCOUNT,
                 SettingsCategory.PROFILES,
                 SettingsCategory.APPEARANCE,
                 SettingsCategory.LAYOUT,
-                SettingsCategory.CONTENT_DISCOVERY,
                 SettingsCategory.PLAYBACK,
-                SettingsCategory.INTEGRATION,
-                SettingsCategory.TRACKING,
                 SettingsCategory.ADVANCED,
                 SettingsCategory.ABOUT,
                 SettingsCategory.DEBUG
@@ -90,8 +86,7 @@ class SettingsCatalogTest {
         assertEquals(
             listOf(
                 SettingsCategory.APPEARANCE,
-                SettingsCategory.CONTENT_DISCOVERY,
-                SettingsCategory.INTEGRATION,
+                SettingsCategory.PLAYBACK,
                 SettingsCategory.ADVANCED
             ),
             dividerBefore
@@ -107,21 +102,21 @@ class SettingsCatalogTest {
             isDebugBuild = false
         )
         assertFalse(categories.startsNewGroup(0))
-        assertTrue(categories.startsNewGroup(categories.indexOf(SettingsCategory.CONTENT_DISCOVERY)))
+        assertTrue(categories.startsNewGroup(categories.indexOf(SettingsCategory.PLAYBACK)))
     }
 
     @Test
-    fun `watch party shows for every profile only while available`() {
-        listOf(true, false).forEach { primary ->
-            val available = visibleSettingsCategories(primary, isEssentialMode = false, isDebugBuild = false, isWatchPartyAvailable = true)
-            val unavailable = visibleSettingsCategories(primary, isEssentialMode = false, isDebugBuild = false, isWatchPartyAvailable = false)
-            assertTrue(SettingsCategory.WATCH_PARTY in available)
-            assertFalse(SettingsCategory.WATCH_PARTY in unavailable)
-        }
-        assertEquals(
-            listOf(SettingsCategory.ACCOUNT, SettingsCategory.PROFILES, SettingsCategory.WATCH_PARTY),
-            visibleSettingsCategories(true, isEssentialMode = false, isDebugBuild = false, isWatchPartyAvailable = true).take(3)
+    fun `watchfirst hides the nuvio account, addons, integrations, tracking and watch party`() {
+        val hidden = setOf(
+            SettingsCategory.ACCOUNT,
+            SettingsCategory.WATCH_PARTY,
+            SettingsCategory.CONTENT_DISCOVERY,
+            SettingsCategory.INTEGRATION,
+            SettingsCategory.TRACKING,
         )
+        allCombinations().forEach { categories ->
+            assertTrue(categories.none { it in hidden })
+        }
     }
 
     private fun allCombinations(): List<List<SettingsCategory>> =

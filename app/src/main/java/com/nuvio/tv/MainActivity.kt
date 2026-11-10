@@ -122,6 +122,7 @@ import androidx.core.os.ConfigurationCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.metrics.performance.JankStats
 import androidx.metrics.performance.PerformanceMetricsState
 import androidx.navigation.NavHostController
@@ -299,6 +300,9 @@ open class MainActivity : ComponentActivity() {
     lateinit var profileManager: ProfileManager
 
     @Inject
+    lateinit var watchfirstAccess: com.nuvio.tv.core.watchfirst.WatchfirstAccess
+
+    @Inject
     lateinit var authManager: AuthManager
 
     @Inject
@@ -393,6 +397,17 @@ open class MainActivity : ComponentActivity() {
         val launchEpisodeTitle = intent?.getStringExtra("episodeTitle")
         captureDeepLinkIntent(intent)
 
+        // WATCHFIRST: same rhythm as the PC and phone apps. While the app is on screen, re-read the plan and
+        // addons every minute (and right away when it comes back), so admin changes reach the TV quickly.
+        lifecycleScope.launch {
+            repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+                while (true) {
+                    watchfirstAccess.refreshNow()
+                    delay(60_000)
+                }
+            }
+        }
+
         setContent {
             var hasSelectedProfileThisSession by rememberSaveable { mutableStateOf(false) }
             var startupSession by remember { mutableIntStateOf(0) }
@@ -411,6 +426,7 @@ open class MainActivity : ComponentActivity() {
             }
             val hasSeenAuthQrOnFirstLaunch by hasSeenAuthQrFlow.collectAsState(initial = null)
             val authState by authManager.authState.collectAsState()
+            val watchfirstState by watchfirstAccess.state.collectAsState()
             val context = LocalContext.current
 
             LaunchedEffect(authSessionNoticeDataStore, context) {
@@ -740,49 +756,25 @@ open class MainActivity : ComponentActivity() {
 
                     if (!surfaceContentReady) {
                         // Still loading auth state; nothing to show yet.
-                    } else if (
-                        hasSeenAuthQrOnFirstLaunch == false &&
-                        authState !is AuthState.FullAccount &&
-                        !onboardingCompletedThisSession
-                    ) {
+                    } else if (!watchfirstState.granted) {
+                        // WATCHFIRST members-only entry replaces Nuvio's account QR onboarding.
                         startupDestination = StartupDestination.Setup
-                        AuthQrSignInScreen(
-                            onBackPress = { finish() },
-                            onContinue = {
+                        com.nuvio.tv.ui.screens.watchfirst.WatchfirstAccessScreen(
+                            access = watchfirstAccess,
+                            notice = watchfirstState.notice,
+                            onConnected = {
                                 lifecycleScope.launch {
-                                    val shouldRunRemoteOnboardingSync =
-                                        authManager.authState.value is AuthState.FullAccount
-
-                                    if (shouldRunRemoteOnboardingSync) {
-                                        if (onboardingProfileSyncInProgress) return@launch
-                                        onboardingProfileSyncInProgress = true
-                                        val maxAttempts = 3
-                                        var synced = false
-                                        for (attempt in 0 until maxAttempts) {
-                                            val result = profileSyncService.pullFromRemote()
-                                            if (result.isSuccess) {
-                                                synced = true
-                                                break
-                                            }
-                                            if (attempt < maxAttempts - 1) {
-                                                delay(1_000)
-                                            }
-                                        }
-                                        if (!synced) {
-                                            android.util.Log.w(
-                                                "MainActivity",
-                                                "Onboarding profile sync failed after retries; continuing"
-                                            )
-                                        }
-                                    }
                                     appOnboardingDataStore.setHasSeenAuthQrOnFirstLaunch(true)
                                     onboardingCompletedThisSession = true
-                                    onboardingProfileSyncInProgress = false
+                                    // The first profile takes the member's first name instead of "Perfil 1".
+                                    val firstName = watchfirstAccess.savedName.trim().substringBefore(' ').take(20)
+                                    val primary = profileManager.profiles.value.firstOrNull { it.id == 1 }
+                                    val defaultName = getString(R.string.profile_default_name, 1)
+                                    if (firstName.isNotEmpty() && primary != null && primary.name == defaultName) {
+                                        profileManager.updateProfile(primary.copy(name = firstName))
+                                    }
                                 }
-                                if (authManager.authState.value is AuthState.FullAccount) {
-                                    startupSyncService.requestSyncNow()
-                                }
-                            }
+                            },
                         )
                     } else {
 
