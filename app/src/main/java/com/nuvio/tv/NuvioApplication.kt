@@ -92,9 +92,11 @@ class NuvioApplication : Application(), SingletonImageLoader.Factory {
         serverUserStateProjection.start()
         // Load locale synchronously so it's available before Activity.attachBaseContext.
         // SharedPreferences reads are fast (cached in memory after first access).
-        val tag = getSharedPreferences("app_locale", Context.MODE_PRIVATE)
-            .getString("locale_tag", null)
-        LocaleCache.localeTag = tag ?: ""
+        val localePrefs = getSharedPreferences("app_locale", Context.MODE_PRIVATE)
+        val tag = localePrefs.getString("locale_tag", null)
+            // WATCHFIRST: Brazilian Portuguese on first launch, like the PC and phone apps; the member can still change it.
+            ?: "pt-BR".also { localePrefs.edit().putString("locale_tag", it).apply() }
+        LocaleCache.localeTag = tag
     }
 
     @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)

@@ -31,7 +31,7 @@ data class ThemeSettingsUiState(
     val customThemeColors: CustomThemeColors = CustomThemeColors.solid(CustomThemeColors.Default.second),
     val customThemeGradientEnabled: Boolean = false,
     val availableThemes: List<AppTheme> = availableAppThemes(CosmeticEntitlements.None),
-    val selectedFont: AppFont = AppFont.INTER,
+    val selectedFont: AppFont = AppFont.JETBRAINS_SANS,
     val availableFonts: List<AppFont> = AppFont.entries.toList(),
     val amoledMode: Boolean = false,
     val amoledSurfacesMode: Boolean = false,

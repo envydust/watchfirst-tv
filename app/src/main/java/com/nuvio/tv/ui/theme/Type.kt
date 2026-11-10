@@ -11,6 +11,14 @@ import androidx.tv.material3.Typography
 import com.nuvio.tv.R
 import com.nuvio.tv.domain.model.AppFont
 
+// WATCHFIRST: the same face as the PC and phone apps.
+val JetBrainsSansFamily = FontFamily(
+    Font(R.font.jetbrains_sans_regular, FontWeight.Normal),
+    Font(R.font.jetbrains_sans_semibold, FontWeight.Medium),
+    Font(R.font.jetbrains_sans_semibold, FontWeight.SemiBold),
+    Font(R.font.jetbrains_sans_bold, FontWeight.Bold)
+)
+
 val DMSansFamily = FontFamily(
     Font(R.font.dm_sans_variable, FontWeight.Normal),
     Font(R.font.dm_sans_variable, FontWeight.Medium),
@@ -33,6 +41,7 @@ val OpenSansFamily = FontFamily(
 )
 
 fun getFontFamily(appFont: AppFont): FontFamily = when (appFont) {
+    AppFont.JETBRAINS_SANS -> JetBrainsSansFamily
     AppFont.INTER -> InterFamily
     AppFont.DM_SANS -> DMSansFamily
     AppFont.OPEN_SANS -> OpenSansFamily

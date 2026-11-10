@@ -55,7 +55,7 @@ val LocalNuvioFocusRingStyle = staticCompositionLocalOf {
 @Composable
 fun NuvioTheme(
     appTheme: AppTheme = AppTheme.WHITE,
-    appFont: AppFont = AppFont.INTER,
+    appFont: AppFont = AppFont.JETBRAINS_SANS,
     amoledMode: Boolean = false,
     amoledSurfacesMode: Boolean = false,
     settingsUiStyle: SettingsUiStyle = SettingsUiStyle.CLASSIC,

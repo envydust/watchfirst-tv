@@ -81,14 +81,24 @@ object ThemeColors {
         backgroundCard = Color(0xFF241A1F)
     )
 
+    // WATCHFIRST: the PC app's palette (neon green signal over blue-black grounds), white focus frame for the remote.
     val White = ThemeColorPalette(
-        secondary = NuvioPrimitives.neutral100,
-        secondaryVariant = NuvioPrimitives.neutral200,
-        onSecondary = NuvioPrimitives.neutral925,
-        onSecondaryVariant = NuvioPrimitives.neutral925,
+        secondary = Color(0xFF39FF14),
+        secondaryVariant = Color(0xFF20C987),
+        onSecondary = Color(0xFF071108),
+        onSecondaryVariant = Color(0xFF071108),
+        accentGradient = listOf(Color(0xFF39FF14), Color(0xFF20C987)),
         focusRing = NuvioPrimitives.white,
-        focusBackground = Color(0xFF303030),
-        backgroundCard = NuvioPrimitives.neutral850
+        focusBackground = Color(0xFF153523),
+        background = Color(0xFF080C10),
+        backgroundElevated = Color(0xFF111820),
+        backgroundCard = Color(0xFF17212B),
+        surface = Color(0xFF111820),
+        surfaceVariant = Color(0xFF17212B),
+        panel = Color(0xFF0D1319),
+        field = Color(0xFF17212B),
+        menu = Color(0xFF111820),
+        modal = Color(0xFF111820)
     )
 
     fun getColorPalette(
