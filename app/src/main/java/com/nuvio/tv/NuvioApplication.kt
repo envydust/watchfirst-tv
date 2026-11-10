@@ -51,6 +51,28 @@ class NuvioApplication : Application(), SingletonImageLoader.Factory {
     @Inject lateinit var simklAnimeIdPreferenceHolder: SimklAnimeIdPreferenceHolder
     @Inject lateinit var serverUserStateProjection: ServerUserStateProjection
 
+    /**
+     * WATCHFIRST: services and view models read their messages from the application context, which follows
+     * the device language. Resolve it in the app's language instead (Brazilian Portuguese unless the member
+     * picked another), so a TV set to English still shows Portuguese errors and notices.
+     */
+    override fun attachBaseContext(base: Context) {
+        val tag = runCatching {
+            base.getSharedPreferences("app_locale", Context.MODE_PRIVATE).getString("locale_tag", null)
+        }.getOrNull() ?: "pt-BR"
+        val localized = runCatching {
+            val locale = java.util.Locale.forLanguageTag(tag)
+            if (tag.isBlank() || tag == LocaleCache.UNSET || locale.language.isNullOrEmpty()) {
+                base
+            } else {
+                val configuration = android.content.res.Configuration(base.resources.configuration)
+                configuration.setLocale(locale)
+                base.createConfigurationContext(configuration)
+            }
+        }.getOrDefault(base)
+        super.attachBaseContext(localized)
+    }
+
     companion object {
         /**
          * Shared cookie jar for CloudStream extension HTTP requests.
