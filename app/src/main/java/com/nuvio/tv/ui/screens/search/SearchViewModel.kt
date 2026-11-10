@@ -1,5 +1,6 @@
 package com.nuvio.tv.ui.screens.search
 
+import com.nuvio.tv.core.watchfirst.withoutWatchfirstLiveTv
 import com.nuvio.tv.domain.model.catalogRowLegacyKey
 import android.content.Context
 import androidx.lifecycle.ViewModel
@@ -897,7 +898,8 @@ class SearchViewModel @Inject constructor(
     }
 
     private suspend fun searchAddons(): List<Addon> =
-        addonRepository.getInstalledAddons().first().enabledAddons() + serverCatalog.searchAddons.first()
+        addonRepository.getInstalledAddons().first().enabledAddons().withoutWatchfirstLiveTv() +
+            serverCatalog.searchAddons.first()
 
     private suspend fun loadDiscoverCatalogs() {
         if (_uiState.value.discoverLocation == DiscoverLocation.OFF) return

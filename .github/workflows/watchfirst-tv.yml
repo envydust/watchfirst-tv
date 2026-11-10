@@ -1,0 +1,119 @@
+name: WATCHFIRST TV
+on:
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'release = APK assinado para membros; debug = APK de teste (instala ao lado, permite inspeção no emulador)'
+        type: choice
+        options: [release, debug]
+        default: release
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+concurrency:
+  group: watchfirst-tv-${{ github.ref }}-${{ inputs.build_type || 'release' }}
+  cancel-in-progress: true
+permissions:
+  contents: write
+jobs:
+  tv:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Write local configuration
+        env:
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          BUILD_TYPE: ${{ inputs.build_type || 'release' }}
+        run: |
+          # No Nuvio cloud keys on purpose: the build falls back to an offline placeholder.
+          {
+            echo "sdk.dir=$ANDROID_HOME"
+            echo "TMDB_API_KEY=$TMDB_API_KEY"
+          } > local.properties
+          touch local.dev.properties
+          if [ -n "$KEYSTORE_B64" ] && [ -n "$KEYSTORE_PASSWORD" ] && [ -n "$KEY_ALIAS" ] && [ -n "$KEY_PASSWORD" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            {
+              echo "NUVIO_RELEASE_STORE_FILE=$RUNNER_TEMP/release.jks"
+              echo "NUVIO_RELEASE_STORE_PASSWORD=$KEYSTORE_PASSWORD"
+              echo "NUVIO_RELEASE_KEY_ALIAS=$KEY_ALIAS"
+              echo "NUVIO_RELEASE_KEY_PASSWORD=$KEY_PASSWORD"
+            } >> local.properties
+            HAS_KEY=true
+          else
+            # Without the WATCHFIRST keystore only a test build is possible, signed with a throwaway key.
+            keytool -genkeypair -keystore "$RUNNER_TEMP/ci.jks" -storepass android -alias ci -keypass android \
+              -dname "CN=WATCHFIRST CI" -keyalg RSA -keysize 2048 -validity 3650 >/dev/null
+            {
+              echo "NUVIO_RELEASE_STORE_FILE=$RUNNER_TEMP/ci.jks"
+              echo "NUVIO_RELEASE_STORE_PASSWORD=android"
+              echo "NUVIO_RELEASE_KEY_ALIAS=ci"
+              echo "NUVIO_RELEASE_KEY_PASSWORD=android"
+            } >> local.properties
+            HAS_KEY=false
+          fi
+          if [ "$BUILD_TYPE" != "debug" ] && [ "$HAS_KEY" = "true" ]; then KIND=release; else KIND=debug; fi
+          echo "KIND=$KIND" >> "$GITHUB_ENV"
+          echo "HAS_KEY=$HAS_KEY" >> "$GITHUB_ENV"
+
+      - name: Build APK
+        run: |
+          if [ "$KIND" = "release" ]; then
+            TASKS=(:app:assembleFullRelease)
+          else
+            TASKS=(:app:assembleFullDebug -Pdebuggable=true)
+          fi
+          # Same memory settings as the phone build: Kotlin compiles inside one 10 GB Gradle JVM on the 16 GB runner.
+          MEMORY_FLAGS=(-Dorg.gradle.jvmargs="-Xmx10g -Dfile.encoding=UTF-8 -XX:MaxMetaspaceSize=1536m" -Pkotlin.compiler.execution.strategy=in-process)
+          # Downloads from Maven/Gradle occasionally time out on hosted runners; retry the build, not the code.
+          set +e
+          for attempt in 1 2 3; do
+            ./gradlew :app:testFullDebugUnitTest --tests 'com.nuvio.tv.ui.screens.settings.SettingsCatalogTest' \
+              "${TASKS[@]}" --no-daemon --stacktrace "${MEMORY_FLAGS[@]}" 2>&1 | tee "$RUNNER_TEMP/gradle-$attempt.log"
+            status=${PIPESTATUS[0]}
+            [ "$status" -eq 0 ] && exit 0
+            if grep -qE "^e: |Compilation error|There were failing tests|Execution failed for task ':app:compile" "$RUNNER_TEMP/gradle-$attempt.log"; then
+              echo "Erro de compilação ou teste: sem nova tentativa."; exit "$status"
+            fi
+            echo "Tentativa $attempt falhou (provável rede). Repetindo em 30 s..."; sleep 30
+          done
+          exit 1
+
+      - name: Collect APKs and checksums
+        id: collect
+        run: |
+          mkdir -p "$RUNNER_TEMP/apk"
+          find app/build/outputs/apk/full -name '*.apk' -exec cp {} "$RUNNER_TEMP/apk/" \;
+          cd "$RUNNER_TEMP/apk"
+          test -n "$(ls *.apk 2>/dev/null)" || { echo "nenhum APK gerado"; exit 1; }
+          sha256sum *.apk > SHA256SUMS.txt
+          VERSION=$(sed -n 's/^ *versionName = "\(.*\)".*/\1/p' "$GITHUB_WORKSPACE/app/build.gradle.kts" | head -1)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          ls -la
+
+      - name: Publish pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.collect.outputs.version }}
+        run: |
+          TAG="tv-v${VERSION}-${GITHUB_SHA::7}-${KIND}-r${GITHUB_RUN_NUMBER}"
+          cd "$RUNNER_TEMP/apk"
+          gh release create "$TAG" *.apk SHA256SUMS.txt \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease \
+            --title "WATCHFIRST TV ${VERSION} ${KIND} (${GITHUB_REF_NAME})" \
+            --notes "Build automático do WATCHFIRST para Android TV, Google TV e Fire TV (${KIND}). Para membros, use o APK universal; os demais são por tipo de processador (armeabi-v7a serve na maioria dos Fire TV Stick). Commit: ${GITHUB_SHA}. Execução: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}. SHA-256 de cada APK em SHA256SUMS.txt."
+          echo "Release: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/tag/${TAG}" >> "$GITHUB_STEP_SUMMARY"

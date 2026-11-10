@@ -12,6 +12,10 @@ class DeepLinkHandler @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
     suspend fun installAddon(manifestUrl: String): DeepLinkInstallResult {
+        // WATCHFIRST: the plan decides the addons, as on the PC and phone apps.
+        if (WATCHFIRST_PLAN_ADDONS_ONLY) {
+            return DeepLinkInstallResult.Error("Os addons da WATCHFIRST vêm do seu plano e não podem ser instalados por link.")
+        }
         return when (val result = addonRepository.fetchAddon(manifestUrl)) {
             is NetworkResult.Success -> {
                 addonRepository.addAddon(manifestUrl)
@@ -25,6 +29,8 @@ class DeepLinkHandler @Inject constructor(
         }
     }
 }
+
+private const val WATCHFIRST_PLAN_ADDONS_ONLY = true
 
 sealed interface DeepLinkInstallResult {
     val message: String

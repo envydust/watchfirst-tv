@@ -1,5 +1,7 @@
 package com.nuvio.tv.ui.screens.addon
 
+import com.nuvio.tv.core.watchfirst.withoutWatchfirstLiveTv
+import com.nuvio.tv.core.watchfirst.WatchfirstLiveTv
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nuvio.tv.core.sync.HomeCatalogSettingsSyncService
@@ -160,8 +162,12 @@ class CatalogOrderViewModel @Inject constructor(
     private fun observeCatalogs() {
         viewModelScope.launch {
             combine(
-                combine(addonRepository.getInstalledAddons(), serverCatalog.addons) { installed, servers ->
-                    installed.enabledAddons() + servers
+                combine(
+                    addonRepository.getInstalledAddons(),
+                    serverCatalog.addons,
+                    WatchfirstLiveTv.liveKeys,
+                ) { installed, servers, live ->
+                    installed.enabledAddons().withoutWatchfirstLiveTv(live) + servers
                 },
                 collectionsDataStore.collections,
                 layoutPreferenceDataStore.homeCatalogOrderKeys,

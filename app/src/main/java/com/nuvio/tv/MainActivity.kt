@@ -1,5 +1,6 @@
 package com.nuvio.tv
 
+import androidx.compose.material.icons.filled.LiveTv
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
@@ -814,13 +815,9 @@ open class MainActivity : ComponentActivity() {
                     val layoutChosen = mainUiPrefs.hasChosenLayout
                     val prefsLoading = layoutChosen == null || !mainUiPrefs.experienceModeLoaded || installedAddons == null
                     if (!prefsLoading) {
-                    val effectiveExperienceMode = mainUiPrefs.experienceMode
-                        ?: if (layoutChosen) ExperienceMode.ADVANCED else null
-                    val needsExperienceSelection = effectiveExperienceMode == null
-                    val needsEssentialAddonSetup =
-                        effectiveExperienceMode == ExperienceMode.ESSENTIAL &&
-                            installedAddons.orEmpty().isEmpty() &&
-                            !mainUiPrefs.addonSetupSkipped
+                    val effectiveExperienceMode = mainUiPrefs.experienceMode ?: ExperienceMode.ADVANCED
+                    val needsExperienceSelection = false
+                    val needsEssentialAddonSetup = false
                     val pendingDeepLink by pendingDeepLinkUrl.collectAsState()
 
                     LaunchedEffect(pendingDeepLink) {
@@ -1037,10 +1034,12 @@ open class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    val rootRoutes = remember(discoverLocation) {
+                    val liveTvEnabled = watchfirstState.liveTvEnabled
+                    val rootRoutes = remember(discoverLocation, liveTvEnabled) {
                         buildSet {
                             add(Screen.Home.route)
                             add(Screen.Search.route)
+                            if (liveTvEnabled) add(Screen.LiveTv.route)
                             add(Screen.Library.route)
                             add(Screen.Settings.route)
                             if (discoverLocation == DiscoverLocation.IN_SIDEBAR) {
@@ -1060,7 +1059,8 @@ open class MainActivity : ComponentActivity() {
                         strNavSearch,
                         strNavLibrary,
                         strNavSettings,
-                        discoverLocation
+                        discoverLocation,
+                        liveTvEnabled
                     ) {
                         buildList {
                             add(
@@ -1086,6 +1086,16 @@ open class MainActivity : ComponentActivity() {
                                     iconRes = R.raw.sidebar_search
                                 )
                             )
+                            // WATCHFIRST: live channels have their own tab (MAX plan), never on Home.
+                            if (liveTvEnabled) {
+                                add(
+                                    DrawerItem(
+                                        route = Screen.LiveTv.route,
+                                        label = "TV ao vivo",
+                                        icon = Icons.Default.LiveTv
+                                    )
+                                )
+                            }
                             add(
                                 DrawerItem(
                                     route = Screen.Library.route,

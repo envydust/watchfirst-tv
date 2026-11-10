@@ -1214,6 +1214,26 @@ private fun PlaybackNavHost(
             )
         }
 
+        composable(Screen.LiveTv.route) {
+            com.nuvio.tv.ui.screens.livetv.LiveTvScreen(
+                showBuiltInHeader = !hideBuiltInHeaders,
+                onPlay = { meta ->
+                    navController.navigate(
+                        Screen.Stream.createRoute(
+                            videoId = meta.id,
+                            contentType = meta.apiType,
+                            title = meta.name,
+                            poster = meta.poster,
+                            backdrop = meta.background ?: meta.landscapePoster,
+                            logo = meta.logo,
+                            contentId = meta.id,
+                            contentName = meta.name
+                        )
+                    )
+                }
+            )
+        }
+
         composable(Screen.Discover.route) {
             DiscoverScreen(
                 showBuiltInHeader = !hideBuiltInHeaders,

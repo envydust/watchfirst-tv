@@ -150,7 +150,9 @@ fun LibraryScreen(
     val servers by serversViewModel.servers.collectAsState()
     val serverShelves by serversViewModel.shelves.collectAsState()
     val hasServers = servers.enabledConnections.isNotEmpty()
-    val viewModes = LibraryViewMode.entries.filter { it != LibraryViewMode.Servers || hasServers }
+    val viewModes = LibraryViewMode.entries.filter {
+        it != LibraryViewMode.Cloud && (it != LibraryViewMode.Servers || hasServers)
+    }
     val viewMode = selectedViewMode.takeIf { it in viewModes } ?: LibraryViewMode.Saved
     var activeCloudItem by remember { mutableStateOf<CloudLibraryItem?>(null) }
     var pendingCloudPlayback by remember { mutableStateOf<CloudLibraryPlaybackInfo?>(null) }

@@ -1,5 +1,6 @@
 package com.nuvio.tv.core.watchfirst
 
+import com.nuvio.tv.domain.model.Addon
 import android.content.Context
 import android.util.Log
 import com.nuvio.tv.core.plugin.PluginManager
@@ -89,6 +90,19 @@ data class WatchfirstAccessState(
 
 class WatchfirstAccessException(message: String) : Exception(message)
 
+/**
+ * The live-TV addons of the current plan, by URL key. Live channels belong only in the "TV ao vivo" section,
+ * so Home, Search/Discover and the catalog settings leave these addons out (same rule as the PC and phone).
+ */
+object WatchfirstLiveTv {
+    internal val keys = MutableStateFlow<Set<String>>(emptySet())
+    val liveKeys: StateFlow<Set<String>> = keys.asStateFlow()
+}
+
+/** These addons without the live-TV ones. */
+fun List<Addon>.withoutWatchfirstLiveTv(live: Set<String> = WatchfirstLiveTv.liveKeys.value): List<Addon> =
+    if (live.isEmpty()) this else filterNot { watchfirstAddonUrlKey(it.baseUrl) in live }
+
 /** Stored addon URLs may gain "/manifest.json", a slash or a query; compare them by this key. */
 fun watchfirstAddonUrlKey(url: String): String =
     url.trim().substringBefore("#").substringBefore("?").trimEnd('/')
@@ -123,10 +137,16 @@ class WatchfirstAccess @Inject constructor(
     )
     val state: StateFlow<WatchfirstAccessState> = _state.asStateFlow()
 
+    private fun publish(next: WatchfirstAccessState) {
+        WatchfirstLiveTv.keys.value = next.liveAddonUrls.mapTo(HashSet(), ::watchfirstAddonUrlKey)
+        _state.value = next
+    }
+
     val savedName: String get() = prefs.getString(KEY_NAME, null).orEmpty()
     val savedEmail: String get() = prefs.getString(KEY_EMAIL, null).orEmpty()
 
     init {
+        WatchfirstLiveTv.keys.value = _state.value.liveAddonUrls.mapTo(HashSet(), ::watchfirstAddonUrlKey)
         // Keep the active profile's addons in line with the plan whenever the plan or the profile changes.
         scope.launch {
             combine(_state, profileManager.activeProfileId) { access, profileId ->
@@ -258,18 +278,18 @@ class WatchfirstAccess @Inject constructor(
         if (prefs.getString(KEY_PLAN, null) != member.plan || prefs.getString(KEY_LIVE_ADDONS, null) != liveValue) {
             prefs.edit().putString(KEY_PLAN, member.plan).putString(KEY_LIVE_ADDONS, liveValue).apply()
         }
-        _state.value = WatchfirstAccessState(
+        publish(WatchfirstAccessState(
             granted = true,
             member = member,
             addons = addons,
             plan = member.plan,
             liveAddonUrls = liveUrls,
-        )
+        ))
     }
 
     private fun lockLocally(notice: String?) {
         prefs.edit().remove(KEY_TOKEN).remove(KEY_PLAN).remove(KEY_LIVE_ADDONS).apply()
-        _state.value = WatchfirstAccessState(granted = false, notice = notice)
+        publish(WatchfirstAccessState(granted = false, notice = notice))
     }
 
     private fun token(): String? = prefs.getString(KEY_TOKEN, null)?.takeIf { it.isNotBlank() }

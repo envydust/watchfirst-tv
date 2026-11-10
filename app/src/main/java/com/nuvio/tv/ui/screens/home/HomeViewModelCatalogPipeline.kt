@@ -1,5 +1,7 @@
 package com.nuvio.tv.ui.screens.home
 
+import com.nuvio.tv.core.watchfirst.withoutWatchfirstLiveTv
+import com.nuvio.tv.core.watchfirst.WatchfirstLiveTv
 import android.util.Log
 import androidx.lifecycle.viewModelScope
 import com.nuvio.tv.R
@@ -129,8 +131,12 @@ internal fun HomeViewModel.observeTmdbSettingsPipeline() {
 @OptIn(FlowPreview::class)
 internal fun HomeViewModel.observeInstalledAddonsPipeline() {
     viewModelScope.launch {
-        combine(addonRepository.getInstalledAddons(), serverCatalog.addons) { installed, servers ->
-            installed.enabledAddons() + servers
+        combine(
+            addonRepository.getInstalledAddons(),
+            serverCatalog.addons,
+            WatchfirstLiveTv.liveKeys,
+        ) { installed, servers, live ->
+            installed.enabledAddons().withoutWatchfirstLiveTv(live) + servers
         }
             .distinctUntilChanged()
             .collectLatest { addons ->

@@ -1,5 +1,6 @@
 package com.nuvio.tv.ui.screens.ambient
 
+import com.nuvio.tv.core.watchfirst.withoutWatchfirstLiveTv
 import android.content.Context
 import com.nuvio.tv.core.network.NetworkResult
 import com.nuvio.tv.core.tmdb.MetaPreviewEnricher
@@ -40,7 +41,7 @@ class AmbientSlideLoader @Inject constructor(
     private val metaPreviewEnricher: MetaPreviewEnricher
 ) {
     suspend fun load(selectedKeys: List<String>): List<AmbientSlide> = coroutineScope {
-        val addons = addonRepository.getInstalledAddons().first().enabledAddons() +
+        val addons = addonRepository.getInstalledAddons().first().enabledAddons().withoutWatchfirstLiveTv() +
             serverCatalog.addons.first()
         val catalogs = addons.ambientCatalogs()
         val keys = selectedKeys.ifEmpty { layoutPreferenceDataStore.heroCatalogSelections.first() }

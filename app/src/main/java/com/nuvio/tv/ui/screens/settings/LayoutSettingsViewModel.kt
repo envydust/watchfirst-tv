@@ -1,5 +1,6 @@
 package com.nuvio.tv.ui.screens.settings
 
+import com.nuvio.tv.core.watchfirst.withoutWatchfirstLiveTv
 import com.nuvio.tv.core.util.readAppLogoBytes
 import com.nuvio.tv.domain.model.catalogRowLegacyKey
 import android.content.Context
@@ -1018,7 +1019,7 @@ class LayoutSettingsViewModel @Inject constructor(
     private fun loadAvailableCatalogs() {
         viewModelScope.launch {
             addonRepository.getInstalledAddons().collectLatest { installedAddons ->
-                val addons = installedAddons.enabledAddons()
+                val addons = installedAddons.enabledAddons().withoutWatchfirstLiveTv()
                 val catalogs = addons.flatMap { addon ->
                     addon.catalogs
                         .filter { catalog ->
