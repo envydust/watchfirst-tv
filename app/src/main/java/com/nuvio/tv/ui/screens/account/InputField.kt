@@ -20,7 +20,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -50,6 +57,7 @@ internal fun InputField(
 ) {
     val textFieldFocusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
     var isEditing by remember { mutableStateOf(false) }
 
     LaunchedEffect(isEditing) {
@@ -86,6 +94,28 @@ internal fun InputField(
                 .fillMaxWidth()
                 .padding(horizontal = NuvioTheme.spacing.lg, vertical = 14.dp)
                 .focusRequester(textFieldFocusRequester)
+                // WATCHFIRST: with the remote, Back only hides the keyboard and the single-line field kept the
+                // focus, so up/down did nothing. Up/down now leave the field; OK brings the keyboard back.
+                .onPreviewKeyEvent { event ->
+                    if (!isEditing || event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                    when (event.key) {
+                        Key.DirectionDown, Key.DirectionUp -> {
+                            val moved = focusManager.moveFocus(
+                                if (event.key == Key.DirectionDown) FocusDirection.Down else FocusDirection.Up
+                            )
+                            if (moved) {
+                                isEditing = false
+                                keyboardController?.hide()
+                            }
+                            true
+                        }
+                        Key.DirectionCenter -> {
+                            keyboardController?.show()
+                            true
+                        }
+                        else -> false
+                    }
+                }
                 .onFocusChanged {
                     if (!it.isFocused && isEditing) {
                         isEditing = false

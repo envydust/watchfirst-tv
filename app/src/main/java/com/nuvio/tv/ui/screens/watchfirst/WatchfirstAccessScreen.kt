@@ -134,8 +134,8 @@ fun WatchfirstAccessScreen(
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 72.dp, vertical = 56.dp),
-            horizontalArrangement = Arrangement.spacedBy(64.dp),
+                .padding(horizontal = 64.dp, vertical = 40.dp),
+            horizontalArrangement = Arrangement.spacedBy(48.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // Left: brand and the three steps, so the member knows where the code comes from.
@@ -150,21 +150,22 @@ fun WatchfirstAccessScreen(
                     alignment = Alignment.CenterStart,
                     modifier = Modifier.height(40.dp).width(240.dp),
                 )
-                Spacer(Modifier.height(36.dp))
+                Spacer(Modifier.height(28.dp))
                 Text(
                     text = if (codeStep) "Digite o código do site" else "Sua próxima sessão começa aqui.",
                     color = colors.TextPrimary,
-                    fontSize = 40.sp,
-                    lineHeight = 46.sp,
+                    fontSize = 36.sp,
+                    lineHeight = 42.sp,
                     fontWeight = FontWeight.Bold,
                 )
                 Spacer(Modifier.height(14.dp))
                 Text(
                     text = "Filmes, séries e TV ao vivo do seu plano WATCHFIRST.",
                     color = colors.TextSecondary,
-                    fontSize = 18.sp,
+                    fontSize = 17.sp,
+                    lineHeight = 23.sp,
                 )
-                Spacer(Modifier.height(32.dp))
+                Spacer(Modifier.height(22.dp))
                 StepLine(1, "Informe seu nome e e-mail.", active = !codeStep)
                 StepLine(2, "No celular ou computador, abra o site do seu plano e toque em \"Gerar código para conectar\".", active = codeStep)
                 StepLine(3, "Digite aqui o código que aparecer.", active = codeStep)
@@ -173,7 +174,7 @@ fun WatchfirstAccessScreen(
             // Right: the form.
             Column(
                 modifier = Modifier
-                    .width(440.dp)
+                    .width(400.dp)
                     .clip(RoundedCornerShape(20.dp))
                     .background(colors.BackgroundElevated)
                     .border(1.dp, Color.White.copy(alpha = 0.065f), RoundedCornerShape(20.dp))
@@ -292,7 +293,7 @@ private fun PrimaryButton(text: String, enabled: Boolean = true, onClick: () -> 
 private fun StepLine(number: Int, text: String, active: Boolean) {
     val colors = NuvioTheme.colors
     Row(
-        modifier = Modifier.padding(vertical = 7.dp),
+        modifier = Modifier.padding(vertical = 5.dp),
         verticalAlignment = Alignment.Top,
     ) {
         Box(
@@ -313,8 +314,8 @@ private fun StepLine(number: Int, text: String, active: Boolean) {
         Text(
             text = text,
             color = if (active) colors.TextPrimary else colors.TextSecondary,
-            fontSize = 17.sp,
-            lineHeight = 23.sp,
+            fontSize = 16.sp,
+            lineHeight = 21.sp,
             modifier = Modifier.padding(top = 3.dp),
         )
     }
