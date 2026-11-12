@@ -204,13 +204,13 @@
     <string name="play_manually">Assistir manualmente</string>
     <string name="episodes_season_actions">Opções da temporada</string>
 
-    <string name="detail_added_to_library">Adicionado à biblioteca</string>
-    <string name="detail_removed_from_library">Removido da biblioteca</string>
+    <string name="detail_added_to_library">Adicionado à sua Biblioteca</string>
+    <string name="detail_removed_from_library">Removido da sua Biblioteca</string>
     <string name="detail_episode_marked_watched">Episódio marcado como assistido</string>
     <string name="detail_episode_marked_unwatched">Episódio marcado como não assistido</string>
     <string name="detail_lists_updated">Listas atualizadas</string>
     <string name="detail_movie_marked_watched">Marcado como assistido</string>
-    <string name="detail_movie_marked_unwatched">Marcado como não assistido</string>
+    <string name="detail_movie_marked_unwatched">Desmarcado como assistido</string>
     <string name="detail_all_episodes_watched">Todos os episódios já assistidos</string>
     <string name="detail_no_watched_episodes">Nenhum episódio assistido nesta temporada</string>
     <string name="detail_all_previous_watched">Todos os episódios anteriores já assistidos</string>
