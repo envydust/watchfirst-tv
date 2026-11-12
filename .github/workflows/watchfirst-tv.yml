@@ -86,7 +86,7 @@ jobs:
           # Downloads from Maven/Gradle occasionally time out on hosted runners; retry the build, not the code.
           set +e
           for attempt in 1 2 3; do
-            ./gradlew :app:testFullDebugUnitTest --tests 'com.nuvio.tv.ui.screens.settings.SettingsCatalogTest' \
+            ./gradlew :app:testFullDebugUnitTest --tests 'com.nuvio.tv.ui.screens.settings.SettingsCatalogTest'               --tests 'com.nuvio.tv.ui.screens.CatalogListSearchTest'               --tests 'com.nuvio.tv.ui.screens.categories.HomeCategoryGroupsTest'               --tests 'com.nuvio.tv.ui.screens.player.SourceFallbackTest' \
               "${TASKS[@]}" --no-daemon --stacktrace "${MEMORY_FLAGS[@]}" 2>&1 | tee "$RUNNER_TEMP/gradle-$attempt.log"
             status=${PIPESTATUS[0]}
             [ "$status" -eq 0 ] && exit 0
