@@ -24,6 +24,7 @@ import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -31,6 +32,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -38,9 +40,15 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.text.style.TextOverflow
+import com.nuvio.tv.domain.model.CatalogRow
+import com.nuvio.tv.ui.screens.account.InputField
+import kotlinx.coroutines.delay
 import com.nuvio.tv.ui.util.dpadRepeatThrottle
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -72,6 +80,9 @@ import kotlin.math.roundToInt
 /** Stable focus key for a catalog poster (survives list reloads; not a grid index). */
 private fun catalogItemFocusKey(item: MetaPreview): String = "${item.apiType}:${item.id}"
 
+/** How long an automatic page read may take before the list search stops showing it as busy. */
+private const val LIST_SEARCH_PAGE_WAIT_MS = 15_000L
+
 @Composable
 fun CatalogSeeAllScreen(
     catalogId: String,
@@ -81,6 +92,7 @@ fun CatalogSeeAllScreen(
     serverCatalog: ServerCatalogViewModel? = null,
     viewModel: HomeViewModel = hiltViewModel(),
     posterOptionsViewModel: com.nuvio.tv.ui.components.posteroptions.PosterOptionsViewModel = hiltViewModel(),
+    listSearch: CatalogListSearchViewModel = hiltViewModel(),
     onNavigateToDetail: (String, String, String) -> Unit,
     onBackPress: () -> Unit
 ) {
@@ -95,8 +107,6 @@ fun CatalogSeeAllScreen(
         focusedBorderWidth = PosterCardDefaults.Style.focusedBorderWidth,
         focusedScale = PosterCardDefaults.Style.focusedScale
     )
-
-    BackHandler { onBackPress() }
 
     val isSearchMode = searchViewModel != null
     val catalogKey = catalogRowLegacyKey(addonId, type, catalogId)
@@ -126,20 +136,95 @@ fun CatalogSeeAllScreen(
         }
     }
 
+    fun requestMoreItems(row: CatalogRow) {
+        if (serverCatalog != null) {
+            serverCatalog.loadMore()
+        } else if (searchViewModel != null) {
+            searchViewModel.onEvent(
+                SearchEvent.LoadMoreCatalog(row.catalogId, row.addonId, row.apiType)
+            )
+        } else {
+            viewModel.onEvent(
+                HomeEvent.OnLoadMoreCatalog(row.catalogId, row.addonId, row.apiType)
+            )
+        }
+    }
+
+    // WATCHFIRST: search inside this list only (member feedback). The addon's own search answers
+    // when its manifest has one for this catalog; otherwise the loaded titles are filtered and a
+    // few more pages are read while the search is on.
+    val listQuery by listSearch.query.collectAsState()
+    val remoteSearch by listSearch.remote.collectAsState()
+    val addonSearchAvailable by listSearch.addonSearchAvailable.collectAsState()
+    val homeLoadingCatalogs by viewModel.loadingCatalogs.collectAsState()
+    val trimmedQuery = listQuery.trim()
+    val queryActive = trimmedQuery.isNotEmpty()
+    val allowAddonSearch = !isSearchMode && serverCatalog == null
+    LaunchedEffect(
+        catalogRow?.addonId,
+        catalogRow?.addonBaseUrl,
+        catalogRow?.apiType,
+        catalogRow?.catalogId,
+        allowAddonSearch
+    ) {
+        listSearch.bindList(catalogRow, allowAddonSearch)
+    }
+    val rowLoading = catalogRow?.isLoading == true ||
+        (allowAddonSearch && catalogKey in homeLoadingCatalogs)
+    val useLocalPaging = !addonSearchAvailable || remoteSearch.failed
+    val allItems = catalogRow?.items.orEmpty()
+    val visibleItems = remember(allItems, trimmedQuery, remoteSearch.results) {
+        if (trimmedQuery.isEmpty()) {
+            allItems
+        } else {
+            mergeListSearchResults(filterListByQuery(allItems, trimmedQuery), remoteSearch.results)
+        }
+    }
+    var autoPageInFlight by remember { mutableStateOf(false) }
+    LaunchedEffect(queryActive, useLocalPaging, rowLoading, catalogRow?.hasMore, allItems.size) {
+        autoPageInFlight = false
+        if (!queryActive || !useLocalPaging) return@LaunchedEffect
+        val row = catalogRow ?: return@LaunchedEffect
+        if (rowLoading || !row.hasMore) return@LaunchedEffect
+        if (!listSearch.claimAutoPage()) return@LaunchedEffect
+        autoPageInFlight = true
+        requestMoreItems(row)
+        delay(LIST_SEARCH_PAGE_WAIT_MS)
+        autoPageInFlight = false
+    }
+    val currentQueryActive by rememberUpdatedState(queryActive)
+
     val gridState = rememberLazyGridState()
     val restoreFocusRequester = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
     // Persist the focused catalog item by stable id (not grid index) so return-from-Details
     // can re-focus the same poster even if the row reloads or the first cell steals focus.
     var focusedItemKey by rememberSaveable(catalogKey) { mutableStateOf<String?>(null) }
     var shouldRestoreFocus by rememberSaveable(catalogKey) { mutableStateOf(true) }
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    val focusedItemIndex = remember(catalogRow?.items, focusedItemKey) {
-        val items = catalogRow?.items.orEmpty()
-        if (items.isEmpty()) return@remember 0
+    BackHandler {
+        // Back first clears a list search, then leaves the screen.
+        if (listSearch.query.value.isNotEmpty()) {
+            listSearch.clearQuery()
+            shouldRestoreFocus = true
+        } else {
+            onBackPress()
+        }
+    }
+
+    var lastListQuery by rememberSaveable(catalogKey) { mutableStateOf(trimmedQuery) }
+    LaunchedEffect(trimmedQuery) {
+        if (trimmedQuery == lastListQuery) return@LaunchedEffect
+        lastListQuery = trimmedQuery
+        if (gridState.layoutInfo.totalItemsCount > 0) gridState.scrollToItem(0)
+    }
+
+    val focusedItemIndex = remember(visibleItems, focusedItemKey) {
+        if (visibleItems.isEmpty()) return@remember 0
         val key = focusedItemKey
         if (key.isNullOrBlank()) return@remember 0
-        items.indexOfFirst { catalogItemFocusKey(it) == key }.takeIf { it >= 0 } ?: 0
+        visibleItems.indexOfFirst { catalogItemFocusKey(it) == key }.takeIf { it >= 0 } ?: 0
     }
 
     // Load more when scrolling near the bottom
@@ -151,20 +236,12 @@ fun CatalogSeeAllScreen(
         }
             .distinctUntilChanged()
             .collect { (lastVisible, total) ->
+                // A list search reads its own (limited) pages above.
+                if (currentQueryActive) return@collect
                 if (total > 0 && lastVisible >= total - 10) {
                     val row = catalogRow
                     if (row != null && row.hasMore && !row.isLoading) {
-                        if (serverCatalog != null) {
-                            serverCatalog.loadMore()
-                        } else if (isSearchMode) {
-                            searchViewModel.onEvent(
-                                SearchEvent.LoadMoreCatalog(row.catalogId, row.addonId, row.apiType)
-                            )
-                        } else {
-                            viewModel.onEvent(
-                                HomeEvent.OnLoadMoreCatalog(row.catalogId, row.addonId, row.apiType)
-                            )
-                        }
+                        requestMoreItems(row)
                     }
                 }
             }
@@ -182,9 +259,9 @@ fun CatalogSeeAllScreen(
         }
     }
 
-    LaunchedEffect(shouldRestoreFocus, catalogRow?.items?.size, focusedItemKey) {
+    LaunchedEffect(shouldRestoreFocus, visibleItems.size, focusedItemKey) {
         if (!shouldRestoreFocus) return@LaunchedEffect
-        val items = catalogRow?.items.orEmpty()
+        val items = visibleItems
         if (items.isEmpty()) return@LaunchedEffect
 
         val targetIndex = focusedItemIndex.coerceIn(0, items.lastIndex)
@@ -212,8 +289,22 @@ fun CatalogSeeAllScreen(
             Text(
                 text = catalogRow?.catalogName ?: stringResource(R.string.catalog_see_all_title_fallback),
                 style = MaterialTheme.typography.headlineLarge,
-                color = NuvioTheme.colors.TextPrimary
+                color = NuvioTheme.colors.TextPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
             )
+            if (catalogRow != null) {
+                Spacer(modifier = Modifier.width(NuvioTheme.spacing.xl))
+                // Up from the first row of posters reaches this field; Done goes back down to the results.
+                InputField(
+                    value = listQuery,
+                    onValueChange = listSearch::onQueryChange,
+                    placeholder = "Buscar nesta lista",
+                    onImeAction = { focusManager.moveFocus(FocusDirection.Down) },
+                    modifier = Modifier.width(380.dp)
+                )
+            }
         }
 
         if (uiState.catalogAddonNameEnabled) {
@@ -229,12 +320,16 @@ fun CatalogSeeAllScreen(
 
         Spacer(modifier = Modifier.height(NuvioTheme.spacing.xl))
 
-        val hasItems = catalogRow?.items?.isNotEmpty() == true
         val isCatalogLoading = if (catalogRow == null) serverFailed?.value != true else catalogRow.isLoading
+        val searchBusy = queryActive && (
+            remoteSearch.searching ||
+                (catalogRow == null && isCatalogLoading) ||
+                (useLocalPaging && (rowLoading || autoPageInFlight))
+            )
 
-        if (hasItems) {
-            val seeAllItemKeys = remember(catalogRow?.items) {
-                catalogRow?.stableItemKeys().orEmpty()
+        if (catalogRow != null && visibleItems.isNotEmpty()) {
+            val seeAllItemKeys = remember(catalogRow, visibleItems) {
+                catalogRow.copy(items = visibleItems).stableItemKeys()
             }
             Box(modifier = Modifier.fillMaxSize()) {
                 LazyVerticalGrid(
@@ -253,7 +348,7 @@ fun CatalogSeeAllScreen(
                     verticalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.lg)
                 ) {
                     itemsIndexed(
-                        items = catalogRow.items,
+                        items = visibleItems,
                         key = { index, _ -> seeAllItemKeys.getOrElse(index) { "${catalogRow.stableKey()}_$index" } }
                     ) { index, item ->
                         val isWatched = if (isSearchMode) {
@@ -298,7 +393,7 @@ fun CatalogSeeAllScreen(
                         )
                     }
 
-                    if (catalogRow.isLoading) {
+                    if (catalogRow.isLoading || searchBusy) {
                         item(key = "loading_more") {
                             val cardShape = remember(posterCardStyle.cornerRadius) {
                                 androidx.compose.foundation.shape.RoundedCornerShape(posterCardStyle.cornerRadius)
@@ -350,7 +445,13 @@ fun CatalogSeeAllScreen(
                     }
                 }
             }
-        } else if (isCatalogLoading) {
+        } else if (queryActive && !searchBusy) {
+            EmptyScreenState(
+                title = "Nada encontrado nesta lista",
+                subtitle = "Nenhum título desta lista combina com “$trimmedQuery”. Confira a digitação ou use a Busca.",
+                icon = Icons.Default.Search
+            )
+        } else if (isCatalogLoading || searchBusy) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
