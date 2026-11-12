@@ -186,6 +186,8 @@ data class PlayerUiState(
     val playerBadgeFilters: List<CompiledStreamBadgeFilter> = emptyList(),
     val error: String? = null,
     val showSwitchToMpvErrorAction: Boolean = false,
+    /** WATCHFIRST: every source failed; the error offers the source list. */
+    val showPickSourceErrorAction: Boolean = false,
     val playbackIssueReportStatus: PlaybackIssueReportStatus = PlaybackIssueReportStatus.Idle,
     val playbackIssueReportId: String? = null,
     val playbackIssueReportError: String? = null,
@@ -371,6 +373,8 @@ sealed class PlayerEvent {
     data class OnSourceStreamSelected(val stream: Stream) : PlayerEvent()
     data object OnDismissTransientOverlay : PlayerEvent()
     data object OnRetry : PlayerEvent()
+    /** WATCHFIRST: from the error screen, open the source list to choose another source. */
+    data object OnPickAnotherSource : PlayerEvent()
     data object OnReportPlaybackIssue : PlayerEvent()
     data object OnParentalGuideHide : PlayerEvent()
     data class OnShowDisplayModeInfo(val info: DisplayModeInfo) : PlayerEvent()

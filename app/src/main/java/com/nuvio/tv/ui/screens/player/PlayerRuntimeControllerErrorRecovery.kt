@@ -317,6 +317,12 @@ internal fun PlayerRuntimeController.resetErrorRetryState() {
     errorRetryCount = 0
     parsingErrorProbeAttempted = false
     pendingAudioPcmFallbackRebuild = false
+    // WATCHFIRST: per-stream one-shot retries (see resetLoadingOverlayForNewStream).
+    timeoutRecoveryAttempts = 0
+    hasRetriedCurrentStreamAfterUnexpectedNpe = false
+    hasRetriedCurrentStreamAfterMediaPeriodHolderCrash = false
+    hasRetriedCurrentStreamAfter416 = false
+    sourceFallbackGaveUpMessage = null
     errorRetryJob?.cancel()
     errorRetryJob = null
 }
@@ -542,6 +548,10 @@ internal fun PlayerRuntimeController.tryParsingErrorProbeFallback(
                 return@launch
             }
             val userFacingError = error.toDisplayMessage(context)
+            // WATCHFIRST: move to another source before showing the error.
+            if (tryNextSourceAfterError(userFacingError)) {
+                return@launch
+            }
             _uiState.update {
                 it.copy(
                     error = userFacingError,

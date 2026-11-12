@@ -69,14 +69,18 @@ internal fun PlayerRuntimeController.startInitialPlaybackIfNeeded() {
                 throw e
             } catch (e: Exception) {
                 Log.e("PlayerStartup", "Failed to start torrent", e)
-                _uiState.update {
-                    it.copy(
-                        error = context.getString(
-                            R.string.player_error_failed_start_torrent,
-                            e.message ?: context.getString(R.string.error_unknown)
-                        ),
-                        showLoadingOverlay = false
-                    )
+                val message = context.getString(
+                    R.string.player_error_failed_start_torrent,
+                    e.message ?: context.getString(R.string.error_unknown)
+                )
+                // WATCHFIRST: move to another source before showing the error.
+                if (!tryNextSourceAfterError(message)) {
+                    _uiState.update {
+                        it.copy(
+                            error = message,
+                            showLoadingOverlay = false
+                        )
+                    }
                 }
             }
         }

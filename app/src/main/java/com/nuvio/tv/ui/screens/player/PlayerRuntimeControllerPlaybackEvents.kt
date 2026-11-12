@@ -1900,6 +1900,10 @@ fun PlayerRuntimeController.onEvent(
         }
         PlayerEvent.OnDismissSourcesPanel -> {
             dismissSourcesPanel()
+            restoreSourceFallbackErrorIfNeeded()
+        }
+        PlayerEvent.OnPickAnotherSource -> {
+            openSourceListFromError()
         }
         PlayerEvent.OnShowPartyPanel -> {
             showPartyPanel()

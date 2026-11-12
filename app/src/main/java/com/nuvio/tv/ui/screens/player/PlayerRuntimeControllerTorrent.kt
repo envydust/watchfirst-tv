@@ -65,12 +65,16 @@ internal fun PlayerRuntimeController.observeTorrentState() {
                 is TorrentState.Streaming -> onTorrentStreaming(torrentState)
                 is TorrentState.Error -> {
                     Log.e(TAG, "Torrent error: ${torrentState.message}")
-                    _uiState.update {
-                        it.copy(
-                            error = context.getString(R.string.player_error_torrent, torrentState.message),
-                            showLoadingOverlay = false,
-                            torrentBufferingMessage = null
-                        )
+                    val message = context.getString(R.string.player_error_torrent, torrentState.message)
+                    // WATCHFIRST: move to another source before showing the error.
+                    if (!tryNextSourceAfterError(message)) {
+                        _uiState.update {
+                            it.copy(
+                                error = message,
+                                showLoadingOverlay = false,
+                                torrentBufferingMessage = null
+                            )
+                        }
                     }
                 }
             }
@@ -211,15 +215,19 @@ internal fun PlayerRuntimeController.launchTorrentSourceStream(
             throw e
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start torrent stream", e)
-            _uiState.update {
-                it.copy(
-                    error = context.getString(
-                        R.string.player_error_failed_start_torrent,
-                        e.message ?: context.getString(R.string.error_unknown)
-                    ),
-                    showLoadingOverlay = false,
-                    loadingProgress = null
-                )
+            val message = context.getString(
+                R.string.player_error_failed_start_torrent,
+                e.message ?: context.getString(R.string.error_unknown)
+            )
+            // WATCHFIRST: move to another source before showing the error.
+            if (!tryNextSourceAfterError(message)) {
+                _uiState.update {
+                    it.copy(
+                        error = message,
+                        showLoadingOverlay = false,
+                        loadingProgress = null
+                    )
+                }
             }
         }
     }

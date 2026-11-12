@@ -154,6 +154,9 @@ internal fun PlayerRuntimeController.reinitializeCurrentStream(startPaused: Bool
         url = currentStreamUrl,
         headers = currentHeaders,
         overrideInternalPlayerEngine = runtimeInternalPlayerEngineOverride,
+        // WATCHFIRST: a retry of the same stream must not re-arm a spent engine failover; it used to,
+        // so ExoPlayer and libmpv kept handing the same failing link back and forth.
+        allowEngineFailover = !startupEngineFailoverTriggered,
         startPaused = startPaused
     )
 }
@@ -1699,6 +1702,10 @@ internal fun PlayerRuntimeController.initializePlayer(
                              error.errorCode == PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES ||
                              error.errorCode == PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED ||
                              error.errorCode == PlaybackException.ERROR_CODE_PARSING_MANIFEST_UNSUPPORTED)
+                        // WATCHFIRST: this source is done; move to another one before showing the error.
+                        if (tryNextSourceAfterError(detailedError, allowSwitchToMpv = canSwitchToMpvOnFatal)) {
+                            return
+                        }
                         _uiState.update {
                             it.copy(
                                 error = detailedError,
@@ -1948,6 +1955,10 @@ internal fun PlayerRuntimeController.initializePlayer(
             scope.launch {
                 runCatching { playerSettingsDataStore.setLastPlaybackDiagnostics(diagnostics) }
             }
+            // WATCHFIRST: try another source (never for a cancelled start).
+            if (e !is kotlinx.coroutines.CancellationException && tryNextSourceAfterError(displayError)) {
+                return@launch
+            }
             _uiState.update {
                 it.copy(
                     error = displayError,
@@ -2119,10 +2130,16 @@ internal fun PlayerRuntimeController.resetLoadingOverlayForNewStream() {
     hasMarkedCurrentEpisodeCompleted = false
     shouldEnforceAutoplayOnFirstReady = true
     userPausedManually = false
-    timeoutRecoveryAttempts = 0
-    hasRetriedCurrentStreamAfterUnexpectedNpe = false
-    hasRetriedCurrentStreamAfterMediaPeriodHolderCrash = false
-    hasRetriedCurrentStreamAfter416 = false
+    // WATCHFIRST: these one-shot retries restart the same stream through here, so re-arming them on
+    // every pass retried a link that keeps timing out (or answering 416) forever. They now re-arm
+    // for a new stream, and after healthy playback (resetErrorRetryState).
+    if (retryGuardsStreamUrl != currentStreamUrl) {
+        retryGuardsStreamUrl = currentStreamUrl
+        timeoutRecoveryAttempts = 0
+        hasRetriedCurrentStreamAfterUnexpectedNpe = false
+        hasRetriedCurrentStreamAfterMediaPeriodHolderCrash = false
+        hasRetriedCurrentStreamAfter416 = false
+    }
     hasAttemptedDv7ToDv81ForCurrentPlayback = false
     isExperimentalDv7ToDv81ActiveForCurrentPlayback = false
     isVc1TrackSelectionBypassActiveForCurrentPlayback = false

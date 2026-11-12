@@ -258,6 +258,9 @@ class PlayerRuntimeController(
     fun getCurrentHeaders(): Map<String, String> = currentHeaders
 
     fun stopAndRelease() {
+        // WATCHFIRST: a source search still running must not start a player after the exit.
+        sourceFallbackJob?.cancel()
+        sourceFallbackJob = null
         leavePartyPlayback()
         // Cache counters only reach the card on a natural finish, so capture them when the user exits too.
         val diagnostics = lastPlaybackDiagnosticsForReport
@@ -683,6 +686,18 @@ class PlayerRuntimeController(
     internal var consecutiveAutoPlayCount: Int = 0
     internal var errorRetryJob: Job? = null
     internal var stableProgressResetJob: Job? = null
+
+    // WATCHFIRST: the stream the one-shot retries above (timeout, 416, NPE…) were armed for. A retry
+    // restarts the same stream and must not re-arm them, or a failing link is requested forever.
+    internal var retryGuardsStreamUrl: String? = null
+
+    // WATCHFIRST: automatic move to another source (PlayerRuntimeControllerSourceFallback.kt).
+    internal var sourceFallbackJob: Job? = null
+    internal var autoSourceFallbackCount: Int = 0
+    internal var autoSourceFallbackItemKey: String? = null
+    internal val failedSourceKeys: MutableSet<String> = mutableSetOf()
+    /** Set when every source failed: the error stays, with a button to the source list. */
+    internal var sourceFallbackGaveUpMessage: String? = null
     @Volatile internal var currentPlayerSettingsForReport: PlayerSettings = PlayerSettings()
     @Volatile internal var hasObservedPlayerSettings: Boolean = false
 

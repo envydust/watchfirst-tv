@@ -1431,6 +1431,11 @@ fun PlayerScreen(
                 showSwitchToMpvAction = uiState.showSwitchToMpvErrorAction &&
                     uiState.internalPlayerEngine != InternalPlayerEngine.MVP_PLAYER,
                 onSwitchToMpv = { viewModel.onEvent(PlayerEvent.OnSwitchToMpvPlayer) },
+                onPickSource = if (uiState.showPickSourceErrorAction) {
+                    { viewModel.onEvent(PlayerEvent.OnPickAnotherSource) }
+                } else {
+                    null
+                },
                 showReportAction = uiState.playbackIssueReportsEnabled,
                 reportStatus = uiState.playbackIssueReportStatus,
                 reportId = uiState.playbackIssueReportId,
@@ -4062,6 +4067,7 @@ private fun ErrorOverlay(
     message: String,
     showSwitchToMpvAction: Boolean = false,
     onSwitchToMpv: (() -> Unit)? = null,
+    onPickSource: (() -> Unit)? = null,
     showReportAction: Boolean,
     reportStatus: PlaybackIssueReportStatus,
     reportId: String?,
@@ -4072,16 +4078,24 @@ private fun ErrorOverlay(
     val exitFocusRequester = remember { FocusRequester() }
     val reportFocusRequester = remember { FocusRequester() }
     val mpvFocusRequester = remember { FocusRequester() }
+    val pickFocusRequester = remember { FocusRequester() }
     val onSwitchMpvAction = onSwitchToMpv.takeIf { showSwitchToMpvAction }
-    val targetFocusRequester = if (onSwitchMpvAction != null) mpvFocusRequester else exitFocusRequester
+    // WATCHFIRST: after every source failed, "Escolher outra fonte" comes first and takes the focus.
+    val hasPickAction = onPickSource != null
+    val targetFocusRequester = when {
+        hasPickAction -> pickFocusRequester
+        onSwitchMpvAction != null -> mpvFocusRequester
+        else -> exitFocusRequester
+    }
 
-    var targetButtonPlaced by remember(onSwitchMpvAction != null) { mutableStateOf(false) }
-    var mpvFocused by remember(onSwitchMpvAction != null) { mutableStateOf(false) }
-    var reportFocused by remember(onSwitchMpvAction != null) { mutableStateOf(false) }
-    var exitFocused by remember(onSwitchMpvAction != null) { mutableStateOf(false) }
-    val hasOverlayFocus = mpvFocused || reportFocused || exitFocused
+    var targetButtonPlaced by remember(onSwitchMpvAction != null, hasPickAction) { mutableStateOf(false) }
+    var mpvFocused by remember(onSwitchMpvAction != null, hasPickAction) { mutableStateOf(false) }
+    var reportFocused by remember(onSwitchMpvAction != null, hasPickAction) { mutableStateOf(false) }
+    var exitFocused by remember(onSwitchMpvAction != null, hasPickAction) { mutableStateOf(false) }
+    var pickFocused by remember(onSwitchMpvAction != null, hasPickAction) { mutableStateOf(false) }
+    val hasOverlayFocus = mpvFocused || reportFocused || exitFocused || pickFocused
 
-    LaunchedEffect(targetButtonPlaced, onSwitchMpvAction != null) {
+    LaunchedEffect(targetButtonPlaced, onSwitchMpvAction != null, hasPickAction) {
         if (!targetButtonPlaced) return@LaunchedEffect
         val focused = targetFocusRequester.requestFocusAfterFrames(frames = 0)
         if (!focused) {
@@ -4157,14 +4171,25 @@ private fun ErrorOverlay(
                 horizontalArrangement = Arrangement.spacedBy(NuvioTheme.spacing.lg),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                if (onPickSource != null) {
+                    PlayerOverlayButton(
+                        text = "Escolher outra fonte",
+                        onClick = onPickSource,
+                        primary = true,
+                        modifier = Modifier
+                            .focusRequester(pickFocusRequester)
+                            .onPlaced { targetButtonPlaced = true }
+                            .onFocusChanged { pickFocused = it.isFocused }
+                    )
+                }
                 if (onSwitchMpvAction != null) {
                     PlayerOverlayButton(
                         text = stringResource(R.string.player_switch_to_mpv),
                         onClick = onSwitchMpvAction,
-                        primary = true,
+                        primary = !hasPickAction,
                         modifier = Modifier
                             .focusRequester(mpvFocusRequester)
-                            .onPlaced { targetButtonPlaced = true }
+                            .onPlaced { if (!hasPickAction) targetButtonPlaced = true }
                             .onFocusChanged { mpvFocused = it.isFocused }
                             .focusProperties {
                                 right = if (showReportAction) reportFocusRequester else exitFocusRequester
@@ -4194,11 +4219,11 @@ private fun ErrorOverlay(
                 PlayerOverlayButton(
                     text = stringResource(R.string.player_go_back),
                     onClick = onBack,
-                    primary = onSwitchMpvAction == null,
+                    primary = onSwitchMpvAction == null && !hasPickAction,
                     modifier = Modifier
                         .focusRequester(exitFocusRequester)
                         .onPlaced {
-                            if (onSwitchMpvAction == null) targetButtonPlaced = true
+                            if (onSwitchMpvAction == null && !hasPickAction) targetButtonPlaced = true
                         }
                         .onFocusChanged { exitFocused = it.isFocused }
                         .focusProperties {

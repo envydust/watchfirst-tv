@@ -198,7 +198,9 @@ internal fun PlayerRuntimeController.handleMpvPlaybackError(
 ) {
     if (!isUsingMpvEngine()) return
     if (isReleasingPlayer) return
-    if (startupEngineFailoverTriggered) return
+    // WATCHFIRST: no early return once an engine failover has run. libmpv only gets here after a
+    // failover from ExoPlayer, and dropping its errors left a dead link loading forever. A second
+    // failover is still refused inside maybeAutoSwitchInternalPlayerOnStartupError.
     if (mpvErrorRecoveryArmed) return
     if (_uiState.value.error != null) return
     if (!mpvErrorHandlingInProgress.compareAndSet(false, true)) return
@@ -278,6 +280,9 @@ internal fun PlayerRuntimeController.handleMpvPlaybackError(
         val retryCanHelp = httpCode == null || !isPermanentHttpStatus(httpCode)
         if (retryCanHelp && attemptMpvAutoRetry(detailedError = detailedError, savedPosition = savedPosition)) return
 
+        // WATCHFIRST: this source is done; move to another one before showing the error.
+        if (tryNextSourceAfterError(detailedError)) return
+
         finishLoadingDiagnostics("mpv_error")
         cancelNextEpisodeAutoPlayOnFatalError()
         _uiState.update {
@@ -329,9 +334,9 @@ private fun PlayerRuntimeController.attemptMpvAutoRetry(
 internal fun PlayerRuntimeController.maybeRunMpvStartupWatchdog(view: NuvioMpvSurfaceView) {
     if (hasRenderedFirstFrame) return
 
+    // WATCHFIRST: also after an engine failover, or a libmpv start that never opens hangs forever.
     val enabled = _uiState.value.error == null &&
         !isReleasingPlayer &&
-        !startupEngineFailoverTriggered &&
         !mpvErrorRecoveryArmed &&
         currentStreamUrl.isNotBlank() &&
         !isInBackground &&
