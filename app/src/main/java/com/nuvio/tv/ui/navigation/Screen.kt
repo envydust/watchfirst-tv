@@ -141,6 +141,8 @@ sealed class Screen(val route: String) {
     data object Search : Screen("search")
     /** WATCHFIRST "TV ao vivo" (MAX plan). */
     data object LiveTv : Screen("live_tv")
+    /** WATCHFIRST "Categorias": every Home list, grouped. */
+    data object Categories : Screen("categories")
     data object Discover : Screen("discover")
     data object Library : Screen("library")
     data object Settings : Screen("settings")

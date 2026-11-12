@@ -1,6 +1,7 @@
 package com.nuvio.tv
 
 import androidx.compose.material.icons.filled.LiveTv
+import androidx.compose.material.icons.filled.Category
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
@@ -1044,6 +1045,7 @@ open class MainActivity : ComponentActivity() {
                         buildSet {
                             add(Screen.Home.route)
                             add(Screen.Search.route)
+                            add(Screen.Categories.route)
                             if (liveTvEnabled) add(Screen.LiveTv.route)
                             add(Screen.Library.route)
                             add(Screen.Settings.route)
@@ -1089,6 +1091,14 @@ open class MainActivity : ComponentActivity() {
                                     route = Screen.Search.route,
                                     label = strNavSearch,
                                     iconRes = R.raw.sidebar_search
+                                )
+                            )
+                            // WATCHFIRST: every Home list grouped as Filmes, Séries and Animes.
+                            add(
+                                DrawerItem(
+                                    route = Screen.Categories.route,
+                                    label = "Categorias",
+                                    icon = Icons.Default.Category
                                 )
                             )
                             // WATCHFIRST: live channels have their own tab (MAX plan), never on Home.

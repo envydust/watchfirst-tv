@@ -1214,6 +1214,22 @@ private fun PlaybackNavHost(
             )
         }
 
+        composable(Screen.Categories.route) { backStackEntry ->
+            // Same lists and ViewModel as Home, so the "Ver tudo" screen it opens has them loaded.
+            val homeBackStackEntry = androidx.compose.runtime.remember {
+                try { navController.getBackStackEntry(Screen.Home.route) } catch (_: Exception) { null }
+            }
+            val homeViewModel: com.nuvio.tv.ui.screens.home.HomeViewModel =
+                androidx.hilt.navigation.compose.hiltViewModel(homeBackStackEntry ?: backStackEntry)
+            com.nuvio.tv.ui.screens.categories.CategoriesScreen(
+                viewModel = homeViewModel,
+                showBuiltInHeader = !hideBuiltInHeaders,
+                onOpenCatalog = { catalogId, addonId, type ->
+                    navController.navigate(Screen.CatalogSeeAll.createRoute(catalogId, addonId, type))
+                }
+            )
+        }
+
         composable(Screen.LiveTv.route) {
             com.nuvio.tv.ui.screens.livetv.LiveTvScreen(
                 showBuiltInHeader = !hideBuiltInHeaders,
